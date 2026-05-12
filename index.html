@@ -361,24 +361,30 @@ function showPage(p){
 // INIT
 // ══════════════════════════════════════════
 async function init(){
+  // Always build UI with defaults first so page is never blank
   initTraffic();
   updFleet();
   rebuildPT();
   buildTrafficUI();
   try {
-    // Load existing sim state if any
     const rows=await sb('sim_state?id=eq.main');
     if(rows&&rows[0]){
       const s=rows[0];
-      if(s.parks){ const p=typeof s.parks==='string'?JSON.parse(s.parks):s.parks; if(p.length) parks=p; }
-      if(s.fleet){ const f=typeof s.fleet==='string'?JSON.parse(s.fleet):s.fleet; fl=f; }
-      if(s.traffic){ trafficData=typeof s.traffic==='string'?JSON.parse(s.traffic):s.traffic; }
+      if(s.parks){ const p=typeof s.parks==='string'?JSON.parse(s.parks):s.parks; if(Array.isArray(p)&&p.length){ parks=p; initTraffic(); } }
+      if(s.fleet){ const f=typeof s.fleet==='string'?JSON.parse(s.fleet):s.fleet; if(f) fl=f; }
+      if(s.traffic){ const t=typeof s.traffic==='string'?JSON.parse(s.traffic):s.traffic; if(t&&Object.keys(t).length) trafficData=t; }
       if(s.status==='running') simRunning=true;
       updFleet(); rebuildPT(); buildTrafficUI();
-      if(simRunning){ setSimRunning(); }
+      if(simRunning) setSimRunning();
+    } else {
+      // Create empty sim state row so it exists
+      try { await sb('sim_state','POST',{id:'main',status:'idle',parks:JSON.stringify(parks),fleet:JSON.stringify(fl),traffic:'{}',sim_min:0}); } catch(e2){}
     }
     setSyncStatus(true,'Verbunden');
-  } catch(e){ setSyncStatus(false,'Offline'); }
+  } catch(e){
+    setSyncStatus(false,'Offline — prüfe Supabase');
+    console.error('Supabase init error:',e);
+  }
   startPolling();
 }
 
@@ -395,7 +401,7 @@ function startPolling(){
       liveBookings=bkRows||[];
       liveTrips=tripRows||[];
       setSyncStatus(true,'Live · '+new Date().toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
-      document.getElementById('last-update').textContent='Zuletzt: '+new Date().toLocaleTimeString('de');
+      const lu=document.getElementById('last-update'); if(lu) lu.textContent='Zuletzt: '+new Date().toLocaleTimeString('de');
       if(currentPage==='live') renderLive();
       if(currentPage==='bericht') renderBericht();
       updateLiveStats();
@@ -694,13 +700,14 @@ function updateLiveStats(){
   const wts=liveBookings.filter(b=>b.wm>0).map(b=>b.wm);
   const avg=wts.length?Math.round(wts.reduce((a,b)=>a+b,0)/wts.length):null;
   const drivers=liveBuses.filter(b=>b.driver_name).length;
-  document.getElementById('l-total').textContent=total;
-  document.getElementById('l-total-sub').textContent=liveBookings.filter(b=>b.status==='ready').length+' wartend';
-  document.getElementById('l-done').textContent=done;
-  document.getElementById('l-done-pct').textContent=total?Math.round(done/total*100)+'%':'0%';
-  document.getElementById('l-avg').textContent=avg??'—';
-  document.getElementById('l-drivers').textContent=drivers;
-  document.getElementById('l-buses-total').textContent=liveBuses.length;
+  function set(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+  set('l-total',total);
+  set('l-total-sub',liveBookings.filter(b=>b.status==='ready').length+' wartend');
+  set('l-done',done);
+  set('l-done-pct',total?Math.round(done/total*100)+'%':'0%');
+  set('l-avg',avg??'—');
+  set('l-drivers',drivers);
+  set('l-buses-total',liveBuses.length);
 }
 
 function renderLive(){
@@ -711,20 +718,22 @@ function renderLive(){
     const col=bus.col||pc(bus.id-1);
     const ph={idle:'Bereit',to_pick:'→ Abholung',to_dest:'→ Ziel'}[bus.phase]||bus.phase;
     const hasDriver=bus.driver_name;
-    return `<div class="bus-tile ${hasDriver?'manual':''}" style="${hasDriver?'border-color:'+col:''}">
-      ${hasDriver?`<div class="driver-tag">👤 ${bus.driver_name}</div>`:''}
-      <div class="bt-top">
-        <div class="bt-badge" style="background:${col}">${bus.id}</div>
-        <div>
-          <div class="bt-name">Bus ${bus.id} · ${bus.cap}P</div>
-          <div class="bt-driver">${hasDriver?'Fahrer: '+bus.driver_name:'Kein Fahrer'}</div>
-        </div>
-      </div>
-      <span class="bt-phase ${bus.phase}">${ph}</span>
-      ${bus.phase!=='idle'?`<div style="font-size:10px;color:#888;margin-top:4px">${bus.loc||'FLH'} → ${bus.dest_at||'?'}</div>`:'<div style="font-size:10px;color:#888;margin-top:4px">@ ${bus.loc||'FLH'}</div>'}
-      <div class="pax-mini"><div class="pax-mini-fill" style="width:${Math.round((bus.pax||0)/bus.cap*100)}%;background:${col}"></div></div>
-      <div style="font-size:10px;color:#aaa;margin-top:2px">${bus.pax||0}/${bus.cap} Pax</div>
-    </div>`;
+    const driverTag = hasDriver ? '<div class="driver-tag">👤 '+bus.driver_name+'</div>' : '';
+    const locLine = bus.phase!=='idle'
+      ? '<div style="font-size:10px;color:#888;margin-top:4px">'+(bus.loc||'FLH')+' → '+(bus.dest_at||'?')+'</div>'
+      : '<div style="font-size:10px;color:#888;margin-top:4px">@ '+(bus.loc||'FLH')+'</div>';
+    return '<div class="bus-tile '+(hasDriver?'manual':'')+'" style="'+(hasDriver?'border-color:'+col:'')+'">'
+      + driverTag
+      + '<div class="bt-top">'
+      + '<div class="bt-badge" style="background:'+col+'">'+bus.id+'</div>'
+      + '<div><div class="bt-name">Bus '+bus.id+' · '+bus.cap+'P</div>'
+      + '<div class="bt-driver">'+(hasDriver?'Fahrer: '+bus.driver_name:'Kein Fahrer')+'</div></div>'
+      + '</div>'
+      + '<span class="bt-phase '+bus.phase+'">'+ph+'</span>'
+      + locLine
+      + '<div class="pax-mini"><div class="pax-mini-fill" style="width:'+Math.round((bus.pax||0)/bus.cap*100)+'%;background:'+col+'"></div></div>'
+      + '<div style="font-size:10px;color:#aaa;margin-top:2px">'+(bus.pax||0)+'/'+bus.cap+' Pax</div>'
+      + '</div>';
   }).join('');
 
   // Bookings
