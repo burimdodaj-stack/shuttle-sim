@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Shuttle — Fahrer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f0ede8;min-height:100vh;color:#1a1a1a}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.active{display:flex}
+
+/* ── LOADING ── */
+#screen-loading{align-items:center;justify-content:center;background:#1a1a1a}
+.spin{width:44px;height:44px;border:3px solid #333;border-top-color:#f59e0b;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-txt{color:#888;font-size:14px}
+
+/* ── NAME ENTRY ── */
+#screen-name{align-items:center;justify-content:center;padding:32px 24px;background:#1a1a1a}
+.name-logo{font-size:48px;margin-bottom:12px}
+.name-title{font-size:24px;font-weight:800;color:#fff;margin-bottom:6px}
+.name-sub{font-size:14px;color:#888;margin-bottom:32px;text-align:center}
+.name-input{width:100%;padding:16px;font-size:18px;font-weight:700;border-radius:14px;border:2px solid #333;background:#222;color:#fff;text-align:center;margin-bottom:16px;outline:none}
+.name-input:focus{border-color:#f59e0b}
+.name-input::placeholder{color:#444;font-weight:400}
+.big-btn{width:100%;padding:18px;border-radius:14px;border:none;font-size:17px;font-weight:800;cursor:pointer;transition:all .15s;letter-spacing:.01em}
+.big-btn.yellow{background:#f59e0b;color:#1a1a1a}
+.big-btn.yellow:active{background:#d97706}
+.big-btn.green{background:#1a7a4a;color:#fff}
+.big-btn.green:active{background:#155f39}
+.big-btn.blue{background:#3b82f6;color:#fff}
+.big-btn.blue:active{background:#2563eb}
+.big-btn.gray{background:#e8e8e4;color:#666;border:1px solid rgba(0,0,0,.12)}
+.big-btn.gray:active{background:#d8d8d4}
+.big-btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ── NO SIM ── */
+#screen-nosim{align-items:center;justify-content:center;padding:32px 24px;background:#f0ede8;text-align:center}
+
+/* ── BUS PICKER ── */
+#screen-picker{background:#f0ede8}
+.picker-header{background:#1a1a1a;padding:20px 20px 16px;color:#fff}
+.picker-title{font-size:20px;font-weight:800}
+.picker-sub{font-size:13px;color:#aaa;margin-top:3px}
+.picker-list{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.bus-card{background:#fff;border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;border:2px solid transparent;cursor:pointer;transition:all .15s;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.bus-card:active{transform:scale(.98)}
+.bus-card.taken{opacity:.45;cursor:not-allowed;background:#f4f4f0}
+.bus-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0}
+.bus-info{flex:1;min-width:0}
+.bus-name{font-size:16px;font-weight:800}
+.bus-detail{font-size:13px;color:#888;margin-top:2px}
+.bus-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;white-space:nowrap}
+.status-free{background:#e8f5ee;color:#1a7a4a}
+.status-taken{background:#fee;color:#c00}
+.status-auto{background:#fffbeb;color:#b45309}
+
+/* ── COCKPIT ── */
+#screen-cockpit{background:#f0ede8}
+
+.cockpit-header{padding:16px 16px 12px;color:#fff;position:relative}
+.ch-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ch-badge{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff;flex-shrink:0;border:2px solid rgba(255,255,255,.3)}
+.ch-name{font-size:17px;font-weight:800;flex:1}
+.ch-time{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;background:rgba(255,255,255,.12);padding:4px 10px;border-radius:8px}
+.ch-loc{font-size:13px;color:rgba(255,255,255,.7);margin-bottom:10px}
+.pax-bar-wrap{background:rgba(255,255,255,.15);border-radius:6px;overflow:hidden;height:8px}
+.pax-bar-fill{height:100%;border-radius:6px;background:#f59e0b;transition:width .4s}
+.pax-bar-lbl{font-size:11px;color:rgba(255,255,255,.6);margin-top:4px;text-align:right}
+
+/* INSTRUCTION CARD — the main guidance box */
+.instr-card{margin:12px 16px 0;border-radius:18px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.instr-top{padding:20px 20px 16px}
+.instr-step{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;opacity:.7}
+.instr-main{font-size:28px;font-weight:900;line-height:1.15;margin-bottom:6px}
+.instr-sub{font-size:14px;opacity:.75;line-height:1.4}
+.instr-route{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+.loc-pill{padding:6px 14px;border-radius:20px;font-size:15px;font-weight:800;background:rgba(255,255,255,.2)}
+.route-arrow{font-size:22px;opacity:.6}
+.instr-bottom{padding:16px 20px 20px;background:rgba(0,0,0,.15)}
+.instr-hint{font-size:13px;color:rgba(255,255,255,.75);display:flex;align-items:flex-start;gap:8px;line-height:1.4}
+.instr-hint-icon{font-size:18px;flex-shrink:0;margin-top:-1px}
+
+/* ACTION BUTTON — huge, always at bottom */
+.action-wrap{padding:16px;margin-top:auto}
+.action-btn{width:100%;padding:22px;border-radius:18px;border:none;font-size:19px;font-weight:900;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.15);letter-spacing:.01em}
+.action-btn:active{transform:scale(.97)}
+.action-btn.a-green{background:#1a7a4a;color:#fff}
+.action-btn.a-blue{background:#3b82f6;color:#fff}
+.action-btn.a-yellow{background:#f59e0b;color:#1a1a1a}
+.action-btn.a-gray{background:#e8e8e4;color:#888}
+.action-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+
+/* GROUP CHOOSER */
+.group-list{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.group-item{background:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border:2px solid transparent;transition:all .15s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.group-item:active{transform:scale(.98)}
+.group-item.here{border-color:#1a7a4a}
+.group-route{flex:1}
+.group-from-to{font-size:15px;font-weight:800;display:flex;align-items:center;gap:6px}
+.group-meta{font-size:12px;color:#888;margin-top:3px}
+.group-badge{font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;white-space:nowrap}
+.group-badge.here{background:#e8f5ee;color:#1a7a4a}
+.group-badge.away{background:#fffbeb;color:#b45309}
+.pax-chips{display:flex;flex-wrap:wrap;gap:4px;padding:8px 16px 0}
+.pax-chip{padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#e8f5ee;color:#1a7a4a}
+
+/* MY LOG */
+.my-log{margin:12px 16px 0;background:#fff;border-radius:14px;padding:12px 14px;max-height:130px;overflow-y:auto}
+.log-title{font-size:10px;font-weight:700;text-transform:uppercase;color:#ccc;margin-bottom:6px;letter-spacing:.06em}
+.log-line{font-size:12px;color:#888;padding:2px 0;border-bottom:1px solid rgba(0,0,0,.04);line-height:1.5}
+
+/* QUIT */
+.quit-wrap{padding:8px 16px 16px;text-align:center}
+.quit-btn{background:none;border:none;color:#ccc;font-size:12px;cursor:pointer;padding:8px;text-decoration:underline}
+
+/* WAITING - no sim */
+.waiting-pulse{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="screen active" id="screen-loading">
+  <div class="spin"></div>
+  <div class="load-txt">Verbinde...</div>
+</div>
+
+<!-- NAME ENTRY -->
+<div class="screen" id="screen-name">
+  <div class="name-logo">🚌</div>
+  <div class="name-title">ShuttleSim</div>
+  <div class="name-sub">Gib deinen Namen ein um einen Bus zu übernehmen</div>
+  <input class="name-input" id="name-input" type="text" placeholder="Dein Name" maxlength="20" autocomplete="off">
+  <button class="big-btn yellow" onclick="submitName()">Weiter →</button>
+</div>
+
+<!-- NO SIM RUNNING -->
+<div class="screen" id="screen-nosim">
+  <div style="font-size:64px;margin-bottom:16px">⏳</div>
+  <div style="font-size:20px;font-weight:800;margin-bottom:8px">Simulation läuft noch nicht</div>
+  <div style="font-size:14px;color:#888;margin-bottom:32px;line-height:1.5">Der Dispatcher muss zuerst die Simulation starten. Warte kurz...</div>
+  <div class="waiting-pulse" style="font-size:13px;color:#aaa">Aktualisiert automatisch</div>
+</div>
+
+<!-- BUS PICKER -->
+<div class="screen" id="screen-picker">
+  <div class="picker-header">
+    <div class="picker-title" id="picker-greeting">Hallo!</div>
+    <div class="picker-sub">Wähle deinen Bus</div>
+  </div>
+  <div class="picker-list" id="picker-list"></div>
+</div>
+
+<!-- COCKPIT -->
+<div class="screen" id="screen-cockpit">
+
+  <div class="cockpit-header" id="cockpit-header">
+    <div class="ch-top">
+      <div class="ch-badge" id="ch-badge">1</div>
+      <div class="ch-name" id="ch-name">Bus 1</div>
+      <div class="ch-time" id="ch-time">00:00</div>
+    </div>
+    <div class="ch-loc" id="ch-loc">Standort: FLH</div>
+    <div class="pax-bar-wrap">
+      <div class="pax-bar-fill" id="pax-bar" style="width:0%"></div>
+    </div>
+    <div class="pax-bar-lbl" id="pax-lbl">0 / 0 Pax</div>
+  </div>
+
+  <!-- Instruction card - changes per state -->
+  <div id="instr-area"></div>
+
+  <!-- Group chooser (idle state) -->
+  <div id="group-area"></div>
+
+  <!-- Pax aboard chips -->
+  <div id="pax-area"></div>
+
+  <!-- My log -->
+  <div class="my-log">
+    <div class="log-title">Mein Log</div>
+    <div id="my-log-entries">—</div>
+  </div>
+
+  <!-- Action button -->
+  <div class="action-wrap">
+    <button class="action-btn a-gray" id="action-btn" disabled>—</button>
+  </div>
+
+  <div class="quit-wrap">
+    <button class="quit-btn" onclick="releaseBus()">Bus abgeben</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://qhgmjoostsekmwnnmiwz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MbdmyXHf1iYzxCD0cP9G_g_SF679Ukp';
+
+const PC=['#6366f1','#ec4899','#f97316','#10b981','#0ea5e9','#f59e0b','#8b5cf6','#14b8a6'];
+const pc=i=>PC[i%PC.length];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let myName = localStorage.getItem('driver_name') || null;
+let myBusId = null;
+let simState = null;
+let buses = [];
+let bookings = [];
+let tripLog = [];
+let myLog = [];
+let pollingInterval = null;
+let parks = [];
+
+// ══════════════════════════════════════════
+// SUPABASE HELPERS
+// ══════════════════════════════════════════
+async function sb(path, method='GET', body=null){
+  const opts = {
+    method,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': method==='POST' ? 'resolution=merge-duplicates,return=representation' : 'return=representation'
+    }
+  };
+  if(body) opts.body = JSON.stringify(body);
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+  if(!res.ok){
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function getSimState(){
+  const rows = await sb('sim_state?id=eq.main');
+  return rows && rows[0] ? rows[0] : null;
+}
+async function getBuses(){
+  return await sb('buses?order=id') || [];
+}
+async function getBookings(){
+  return await sb('bookings?order=born_min') || [];
+}
+async function getTrips(){
+  return await sb('trips?order=id') || [];
+}
+async function updateBus(id, data){
+  data.updated_at = new Date().toISOString();
+  return await sb(`buses?id=eq.${id}`, 'PATCH', data);
+}
+async function updateBooking(id, data){
+  data.updated_at = new Date().toISOString();
+  return await sb(`bookings?id=eq.${id}`, 'PATCH', data);
+}
+async function upsertTrip(trip){
+  trip.updated_at = new Date().toISOString();
+  return await sb('trips', 'POST', trip);
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+async function init(){
+  showScreen('loading');
+  try {
+    const state = await getSimState();
+    if(!state){
+      // No sim state yet — create empty row
+      try { await sb('sim_state', 'POST', {id:'main',status:'idle',parks:'[]',fleet:'{"s":2,"l":2}',traffic:'{}',bookings:'[]',buses:'[]',trip_log:'[]',sim_min:0}); } catch(e){}
+    }
+    if(!myName){
+      showScreen('name');
+    } else {
+      await loadAndShow();
+    }
+  } catch(e) {
+    showScreen('name');
+  }
+}
+
+async function loadAndShow(){
+  try {
+    const [state, busRows, bkRows, tripRows] = await Promise.all([getSimState(), getBuses(), getBookings(), getTrips()]);
+    simState = state;
+    buses = busRows;
+    bookings = bkRows;
+    tripLog = tripRows;
+    if(state) parks = typeof state.parks === 'string' ? JSON.parse(state.parks) : (state.parks||[]);
+
+    // Check if we already have a bus
+    if(myBusId){
+      const still = buses.find(b=>b.id===myBusId&&b.driver_name===myName);
+      if(!still){ myBusId=null; }
+    }
+
+    if(!state || state.status==='idle'){
+      showScreen('nosim');
+      startPolling();
+      return;
+    }
+
+    if(myBusId){
+      showScreen('cockpit');
+      renderCockpit();
+    } else {
+      showScreen('picker');
+      renderPicker();
+    }
+    startPolling();
+  } catch(e){
+    showScreen('nosim');
+    startPolling();
+  }
+}
+
+// ══════════════════════════════════════════
+// POLLING (every 2 seconds)
+// ══════════════════════════════════════════
+function startPolling(){
+  if(pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = setInterval(async ()=>{
+    try {
+      const [state, busRows, bkRows] = await Promise.all([getSimState(), getBuses(), getBookings()]);
+      simState = state;
+      buses = busRows;
+      bookings = bkRows;
+      if(state) parks = typeof state.parks === 'string' ? JSON.parse(state.parks) : (state.parks||[]);
+
+      const currentScreen = document.querySelector('.screen.active')?.id;
+
+      if(!state || state.status==='idle'){
+        if(currentScreen!=='screen-nosim') showScreen('nosim');
+        return;
+      }
+
+      if(myBusId){
+        const still = buses.find(b=>b.id===myBusId&&b.driver_name===myName);
+        if(!still){ myBusId=null; showScreen('picker'); renderPicker(); return; }
+        if(currentScreen==='screen-cockpit') renderCockpit();
+      } else {
+        if(currentScreen!=='screen-picker'){ showScreen('picker'); }
+        renderPicker();
+      }
+    } catch(e){}
+  }, 2000);
+}
+
+// ══════════════════════════════════════════
+// SCREENS
+// ══════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+}
+
+function submitName(){
+  const v = document.getElementById('name-input').value.trim();
+  if(!v){ document.getElementById('name-input').focus(); return; }
+  myName = v;
+  localStorage.setItem('driver_name', v);
+  loadAndShow();
+}
+document.getElementById('name-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitName(); });
+
+// ══════════════════════════════════════════
+// BUS PICKER
+// ══════════════════════════════════════════
+function renderPicker(){
+  document.getElementById('picker-greeting').textContent = 'Hallo, ' + myName + '!';
+  const el = document.getElementById('picker-list');
+  if(!buses.length){
+    el.innerHTML='<div style="color:#aaa;text-align:center;padding:40px 0">Warte auf Simulation...</div>';
+    return;
+  }
+  el.innerHTML = buses.map(bus=>{
+    const taken = bus.manual && bus.driver_name && bus.driver_name !== myName;
+    const isMe = bus.driver_name === myName;
+    const ci = Math.round(bus.id) - 1;
+    const col = bus.col || pc(ci);
+    let statusHTML, cardClass='bus-card';
+
+    if(isMe){
+      statusHTML=`<span class="bus-status status-free">Mein Bus</span>`;
+      cardClass+=' ';
+    } else if(taken){
+      statusHTML=`<span class="bus-status status-taken">🔒 ${bus.driver_name}</span>`;
+      cardClass+=' taken';
+    } else {
+      statusHTML=`<span class="bus-status status-free">Frei</span>`;
+    }
+
+    const ph = {idle:'Bereit',to_pick:'→ Abholung',to_dest:'→ Ziel'}[bus.phase]||bus.phase;
+
+    return `<div class="${cardClass}" onclick="${taken?'':'takeBus('+bus.id+')'}" style="border-color:${isMe?col:'transparent'}">
+      <div class="bus-avatar" style="background:${col}">${bus.id}</div>
+      <div class="bus-info">
+        <div class="bus-name">Bus ${bus.id} · ${bus.cap}P</div>
+        <div class="bus-detail">${ph} · Standort: ${bus.loc||'FLH'}</div>
+      </div>
+      ${statusHTML}
+    </div>`;
+  }).join('');
+}
+
+async function takeBus(id){
+  const bus = buses.find(b=>b.id===id);
+  if(!bus || (bus.manual && bus.driver_name && bus.driver_name!==myName)) return;
+  try {
+    await updateBus(id, {driver_name: myName, manual: true, phase:'idle', pick_at:null, dest_at:null, current_trip:null});
+    myBusId = id;
+    myLog = [];
+    addMyLog('🚌 Bus '+id+' übernommen · Standort: '+(bus.loc||'FLH'));
+    showScreen('cockpit');
+    const [busRows, bkRows] = await Promise.all([getBuses(), getBookings()]);
+    buses = busRows; bookings = bkRows;
+    renderCockpit();
+  } catch(e){ alert('Fehler: '+e.message); }
+}
+
+async function releaseBus(){
+  if(!myBusId) return;
+  try {
+    await updateBus(myBusId, {driver_name: null, manual: false});
+    myBusId = null;
+    showScreen('picker');
+    renderPicker();
+  } catch(e){}
+}
+
+// ══════════════════════════════════════════
+// COCKPIT
+// ══════════════════════════════════════════
+function renderCockpit(){
+  const bus = buses.find(b=>b.id===myBusId);
+  if(!bus){ showScreen('picker'); return; }
+
+  const col = bus.col || pc(bus.id-1);
+  const simMin = simState ? (simState.sim_min||0) : 0;
+  const mm = simMin%60, hh = Math.floor(simMin/60);
+
+  // Header
+  document.getElementById('cockpit-header').style.background = col;
+  const badge = document.getElementById('ch-badge');
+  badge.textContent = bus.id; badge.style.background = 'rgba(0,0,0,.2)';
+  document.getElementById('ch-name').textContent = 'Bus '+bus.id+' · '+bus.cap+'P — '+myName;
+  document.getElementById('ch-time').textContent = ('0'+hh).slice(-2)+':'+('0'+mm).slice(-2);
+  document.getElementById('ch-loc').textContent = 'Standort: '+(bus.loc||'FLH');
+  document.getElementById('pax-bar').style.width = Math.round((bus.pax||0)/bus.cap*100)+'%';
+  document.getElementById('pax-lbl').textContent = (bus.pax||0)+' / '+bus.cap+' Pax';
+
+  // Log
+  document.getElementById('my-log-entries').innerHTML = myLog.length
+    ? myLog.map(l=>'<div class="log-line">'+l+'</div>').join('')
+    : '<div class="log-line" style="color:#ddd">Noch keine Einträge</div>';
+
+  // Build the state-based UI
+  buildCockpitState(bus, col);
+}
+
+function locColor(loc){
+  if(loc==='FLH') return '#1a7a4a';
+  const i = parks.findIndex(p=>p.name===loc);
+  return i>=0 ? pc(i) : '#888';
+}
+function locLabel(loc){ return loc==='FLH' ? '✈ FLH' : loc; }
+
+function buildCockpitState(bus, col){
+  const instrArea = document.getElementById('instr-area');
+  const groupArea = document.getElementById('group-area');
+  const paxArea   = document.getElementById('pax-area');
+  const actionBtn = document.getElementById('action-btn');
+  groupArea.innerHTML = '';
+  paxArea.innerHTML   = '';
+
+  // ═══════════════════════════════
+  // STATE: IDLE
+  // ═══════════════════════════════
+  if(bus.phase === 'idle'){
+    // Find waiting groups
+    const ready = bookings.filter(b=>b.status==='ready'&&!b.bus_id);
+    const map = {};
+    ready.forEach(b=>{
+      const k=b.from_loc+'|'+b.to_loc;
+      if(!map[k]) map[k]={from:b.from_loc,to:b.to_loc,list:[],p:0};
+      map[k].list.push(b); map[k].p+=b.persons;
+    });
+    const groups = Object.values(map).sort((a,b)=>{
+      const ah=a.from===bus.loc?1:0, bh=b.from===bus.loc?1:0;
+      return bh-ah||b.p-a.p;
+    });
+    const here = groups.filter(g=>g.from===bus.loc);
+    const away = groups.filter(g=>g.from!==bus.loc);
+
+    if(groups.length===0){
+      instrArea.innerHTML = makeInstrCard(col,
+        'Schritt 1 von 3',
+        'Warte auf Kunden',
+        'Noch keine Kunden in der Warteschlange. Die Simulation läuft weiter...',
+        null, null,
+        '⏳', 'Kunden werden automatisch erscheinen wenn die Sim-Zeit fortschreitet.'
+      );
+      actionBtn.className='action-btn a-gray';
+      actionBtn.disabled=true;
+      actionBtn.innerHTML='⏳ Warte auf Kunden...';
+      return;
+    }
+
+    // Customers here → show board button
+    if(here.length > 0){
+      const best = here[0];
+      const fc=locColor(best.from), tc=locColor(best.to);
+      instrArea.innerHTML = makeInstrCard(col,
+        'Schritt 1 — Kunden einsteigen lassen',
+        best.p + (best.p===1?' Person wartet':' Personen warten'),
+        best.list.length + ' Buchungen warten bei dir (' + bus.loc + ')',
+        best.from, best.to,
+        '👆', 'Drücke den Knopf um die Kunden einsteigen zu lassen.'
+      );
+      actionBtn.className='action-btn a-green';
+      actionBtn.disabled=false;
+      actionBtn.innerHTML='🧑 Kunden einsteigen lassen';
+      actionBtn.onclick=()=>doBoard(best.from, best.to);
+
+      // show away groups below
+      if(away.length){
+        groupArea.innerHTML='<div style="padding:0 16px;margin-top:4px;font-size:12px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Auch wartend (woanders)</div>'+
+          away.slice(0,3).map(g=>{
+            const fc=locColor(g.from),tc=locColor(g.to);
+            return `<div class="group-item" onclick="doDriveTo('${g.from}','${g.to}')">
+              <div class="group-route">
+                <div class="group-from-to">
+                  <span style="color:${fc};font-weight:800">${locLabel(g.from)}</span>
+                  <span style="color:#ccc">→</span>
+                  <span style="color:${tc};font-weight:800">${locLabel(g.to)}</span>
+                </div>
+                <div class="group-meta">${g.list.length} Buchungen · ${g.p} Personen</div>
+              </div>
+              <span class="group-badge away">Hinfahren</span>
+            </div>`;
+          }).join('');
+      }
+    } else {
+      // Nobody here, all away
+      instrArea.innerHTML = makeInstrCard(col,
+        'Schritt 1 — Fahre zur Abholung',
+        'Kunden warten woanders',
+        'Wähle eine Gruppe unten — dann fährst du hin.',
+        null, null,
+        '👇', 'Tippe auf eine Gruppe um dorthin zu fahren.'
+      );
+      groupArea.innerHTML = groups.slice(0,4).map(g=>{
+        const fc=locColor(g.from), tc=locColor(g.to);
+        return `<div class="group-item" onclick="doDriveTo('${g.from}','${g.to}')">
+          <div class="group-route">
+            <div class="group-from-to">
+              <span style="color:${fc};font-weight:800">${locLabel(g.from)}</span>
+              <span style="color:#ccc">→</span>
+              <span style="color:${tc};font-weight:800">${locLabel(g.to)}</span>
+            </div>
+            <div class="group-meta">${g.list.length} Buchungen · ${g.p} Personen</div>
+          </div>
+          <span class="group-badge away">Hinfahren</span>
+        </div>`;
+      }).join('');
+      actionBtn.className='action-btn a-gray';
+      actionBtn.disabled=true;
+      actionBtn.innerHTML='👇 Gruppe oben auswählen';
+    }
+    return;
+  }
+
+  // ═══════════════════════════════
+  // STATE: TO_PICK
+  // ═══════════════════════════════
+  if(bus.phase === 'to_pick'){
+    const dest = bus.pick_at;
+    const fc = locColor(dest);
+    const trip = tripLog.find(t=>t.id===bus.current_trip);
+    const waitCount = trip ? (Array.isArray(trip.booking_ids)?trip.booking_ids.length:JSON.parse(trip.booking_ids||'[]').length) : '?';
+
+    instrArea.innerHTML = makeInstrCard(col,
+      'Schritt 2 — Fahre zur Abholung',
+      locLabel(dest),
+      waitCount + ' Buchungen warten auf dich',
+      bus.loc, dest,
+      '👆', 'Wenn du bei '+locLabel(dest)+' angekommen bist → Knopf drücken. Erst dann steigen Kunden ein.'
+    );
+    actionBtn.className='action-btn a-blue';
+    actionBtn.disabled=false;
+    actionBtn.innerHTML='🏁 Ich bin bei ' + locLabel(dest) + ' angekommen';
+    actionBtn.onclick=()=>doArrivePickup();
+    return;
+  }
+
+  // ═══════════════════════════════
+  // STATE: TO_DEST
+  // ═══════════════════════════════
+  if(bus.phase === 'to_dest'){
+    const dest = bus.dest_at;
+    const tc = locColor(dest);
+    const aboard = bookings.filter(b=>b.bus_id===bus.id&&b.status==='ride');
+
+    instrArea.innerHTML = makeInstrCard(col,
+      'Schritt 3 — Fahre zum Ziel',
+      locLabel(dest),
+      bus.pax + ' Passagiere an Bord',
+      bus.loc, dest,
+      '👆', 'Wenn du bei '+locLabel(dest)+' angekommen bist → Knopf drücken. Alle steigen aus.'
+    );
+
+    // Show pax chips
+    if(aboard.length){
+      paxArea.innerHTML='<div class="pax-chips">'+
+        aboard.map(b=>`<span class="pax-chip">${b.id} · ${b.persons}P</span>`).join('')+
+      '</div>';
+    }
+
+    actionBtn.className='action-btn a-green';
+    actionBtn.disabled=false;
+    actionBtn.innerHTML='🏁 Ich bin bei ' + locLabel(dest) + ' angekommen';
+    actionBtn.onclick=()=>doArriveDestination();
+    return;
+  }
+}
+
+// ══════════════════════════════════════════
+// INSTRUCTION CARD BUILDER
+// ══════════════════════════════════════════
+function makeInstrCard(col, stepLabel, mainText, subText, fromLoc, toLoc, hintIcon, hintText){
+  const routeHTML = (fromLoc&&toLoc) ? `
+    <div class="instr-route">
+      <span class="loc-pill" style="background:${locColor(fromLoc)}33;color:#fff">${locLabel(fromLoc)}</span>
+      <span class="route-arrow">→</span>
+      <span class="loc-pill" style="background:${locColor(toLoc)}33;color:#fff">${locLabel(toLoc)}</span>
+    </div>` : '';
+
+  return `<div class="instr-card" style="background:${col}">
+    <div class="instr-top">
+      <div class="instr-step">${stepLabel}</div>
+      <div class="instr-main">${mainText}</div>
+      <div class="instr-sub">${subText}</div>
+      ${routeHTML}
+    </div>
+    <div class="instr-bottom">
+      <div class="instr-hint">
+        <span class="instr-hint-icon">${hintIcon}</span>
+        <span>${hintText}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+// DRIVER ACTIONS
+// ══════════════════════════════════════════
+async function doBoard(from, to){
+  const bus = buses.find(b=>b.id===myBusId); if(!bus) return;
+  setActionLoading(true);
+  try {
+    // Find bookings at this location going to 'to'
+    const group = bookings.filter(b=>b.status==='ready'&&!b.bus_id&&b.from_loc===from&&b.to_loc===to);
+    if(!group.length){ addMyLog('⚠ Keine Kunden mehr da'); setActionLoading(false); return; }
+
+    // Load up to capacity
+    let loaded=0, ids=[];
+    for(const b of group){
+      if(loaded+b.persons<=bus.cap){ loaded+=b.persons; ids.push(b.id); }
+    }
+
+    // Create trip
+    const tripId = 'Bus'+bus.id+'-T'+(tripLog.length+1);
+    const simMin = simState ? (simState.sim_min||0) : 0;
+    const newTrip = {
+      id: tripId, bus_id: bus.id, bus_cap: bus.cap,
+      trip_num: (tripLog.filter(t=>t.bus_id===bus.id).length+1),
+      from_loc: from, to_loc: to, leer_fahrt: false,
+      assigned_min: simMin, depart_min: simMin, pickup_min: simMin,
+      arrive_min: null, booking_ids: JSON.stringify(ids)
+    };
+    await upsertTrip(newTrip);
+    tripLog.push(newTrip);
+
+    // Update bookings to 'ride'
+    for(const id of ids){
+      await updateBooking(id, {status:'ride', bus_id:bus.id, trip_id:tripId, pickup_min:simMin, wm: simMin - (group.find(b=>b.id===id)?.ws||0)});
+    }
+
+    // Update bus
+    const travelTime = getTravelTime(from, to);
+    await updateBus(bus.id, {phase:'to_dest', loc:from, dest_at:to, current_trip:tripId, pax:loaded});
+
+    addMyLog('🧑 '+ids.length+' Buchungen ('+loaded+'P) eingestiegen · → '+to);
+
+    // Refresh
+    const [busRows, bkRows, tripRows] = await Promise.all([getBuses(), getBookings(), getTrips()]);
+    buses=busRows; bookings=bkRows; tripLog=tripRows;
+    renderCockpit();
+  } catch(e){ alert('Fehler: '+e.message); }
+  setActionLoading(false);
+}
+
+async function doDriveTo(from, to){
+  const bus = buses.find(b=>b.id===myBusId); if(!bus) return;
+  setActionLoading(true);
+  try {
+    const group = bookings.filter(b=>b.status==='ready'&&!b.bus_id&&b.from_loc===from&&b.to_loc===to);
+    if(!group.length){ addMyLog('⚠ Keine Kunden mehr dort'); setActionLoading(false); renderCockpit(); return; }
+
+    let loaded=0, ids=[];
+    for(const b of group){
+      if(loaded+b.persons<=bus.cap){ loaded+=b.persons; ids.push(b.id); }
+    }
+
+    // Reserve bookings (mark with bus_id but keep status ready)
+    for(const id of ids){
+      await updateBooking(id, {bus_id:bus.id});
+    }
+
+    const simMin = simState ? (simState.sim_min||0) : 0;
+    const tripId = 'Bus'+bus.id+'-T'+(tripLog.length+1);
+    const newTrip = {
+      id: tripId, bus_id: bus.id, bus_cap: bus.cap,
+      trip_num: (tripLog.filter(t=>t.bus_id===bus.id).length+1),
+      from_loc: from, to_loc: to, leer_fahrt: bus.loc!==from,
+      assigned_min: simMin, depart_min: null, pickup_min: null,
+      arrive_min: null, booking_ids: JSON.stringify(ids)
+    };
+    await upsertTrip(newTrip);
+    tripLog.push(newTrip);
+
+    await updateBus(bus.id, {phase:'to_pick', pick_at:from, dest_at:to, current_trip:tripId});
+
+    addMyLog('🚗 Fahre nach '+from+' zur Abholung ('+loaded+'P warten)');
+
+    const [busRows, bkRows, tripRows] = await Promise.all([getBuses(), getBookings(), getTrips()]);
+    buses=busRows; bookings=bkRows; tripLog=tripRows;
+    renderCockpit();
+  } catch(e){ alert('Fehler: '+e.message); }
+  setActionLoading(false);
+}
+
+async function doArrivePickup(){
+  const bus = buses.find(b=>b.id===myBusId); if(!bus) return;
+  setActionLoading(true);
+  try {
+    const from = bus.pick_at;
+    const to = bus.dest_at;
+    const simMin = simState ? (simState.sim_min||0) : 0;
+    const tripId = bus.current_trip;
+
+    // Calculate arrival time based on travel time
+    const travelMins = getTravelTime(bus.loc, from);
+
+    // Load passengers
+    const group = bookings.filter(b=>b.bus_id===bus.id&&b.status==='ready'&&b.from_loc===from);
+    let loaded=0;
+    for(const b of group){
+      if(loaded+b.persons<=bus.cap){
+        loaded+=b.persons;
+        await updateBooking(b.id, {status:'ride', pickup_min:simMin+travelMins, wm:(simMin+travelMins)-(b.ws||b.born_min||0)});
+      }
+    }
+
+    await updateBus(bus.id, {phase:'to_dest', loc:from, pax:loaded, pick_at:null});
+    if(tripId) await sb(`trips?id=eq.${tripId}`, 'PATCH', {pickup_min:simMin+travelMins, depart_min:simMin+travelMins, updated_at:new Date().toISOString()});
+
+    addMyLog('🏁 Bei '+from+' angekommen · '+loaded+'P eingestiegen · → '+to);
+
+    const [busRows, bkRows, tripRows] = await Promise.all([getBuses(), getBookings(), getTrips()]);
+    buses=busRows; bookings=bkRows; tripLog=tripRows;
+    renderCockpit();
+  } catch(e){ alert('Fehler: '+e.message); }
+  setActionLoading(false);
+}
+
+async function doArriveDestination(){
+  const bus = buses.find(b=>b.id===myBusId); if(!bus) return;
+  setActionLoading(true);
+  try {
+    const dest = bus.dest_at;
+    const simMin = simState ? (simState.sim_min||0) : 0;
+    const travelMins = getTravelTime(bus.loc, dest);
+    const arriveMin = simMin + travelMins;
+    const tripId = bus.current_trip;
+
+    // Drop all passengers
+    const aboard = bookings.filter(b=>b.bus_id===bus.id&&b.status==='ride');
+    for(const b of aboard){
+      await updateBooking(b.id, {status:'done', arrive_min:arriveMin});
+    }
+
+    await updateBus(bus.id, {phase:'idle', loc:dest, pax:0, dest_at:null, current_trip:null, pick_at:null});
+    if(tripId) await sb(`trips?id=eq.${tripId}`, 'PATCH', {arrive_min:arriveMin, updated_at:new Date().toISOString()});
+
+    addMyLog('✅ '+aboard.length+' Buchungen abgeliefert bei '+dest);
+    addMyLog('🟢 Frei @ '+dest);
+
+    const [busRows, bkRows, tripRows] = await Promise.all([getBuses(), getBookings(), getTrips()]);
+    buses=busRows; bookings=bkRows; tripLog=tripRows;
+    renderCockpit();
+  } catch(e){ alert('Fehler: '+e.message); }
+  setActionLoading(false);
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function getTravelTime(from, to){
+  if(from===to) return 1;
+  const pName = from==='FLH' ? to : from;
+  const p = parks.find(x=>x.name===pName);
+  return p ? Math.max(1, Math.round(p.mins)) : 5;
+}
+
+function addMyLog(msg){
+  const simMin = simState ? (simState.sim_min||0) : 0;
+  const mm=simMin%60, hh=Math.floor(simMin/60);
+  myLog.unshift(('0'+hh).slice(-2)+':'+('0'+mm).slice(-2)+' — '+msg);
+  if(myLog.length>30) myLog.pop();
+}
+
+function setActionLoading(loading){
+  const btn = document.getElementById('action-btn');
+  if(loading){
+    btn.disabled=true;
+    btn.innerHTML='⏳ Bitte warten...';
+  }
+}
+
+// ══════════════════════════════════════════
+// START
+// ══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
