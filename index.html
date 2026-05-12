@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShuttleSim — Dispatcher</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;font-size:13px;color:#1a1a1a;background:#f0ede8;min-height:100vh}
+.topnav{background:#1a1a1a;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.logo{font-weight:700;font-size:15px;letter-spacing:-.3px;white-space:nowrap}
+.logo span{color:#f59e0b}
+.nav-tabs{display:flex;gap:2px;margin-left:auto}
+.nav-tab{padding:5px 14px;border-radius:7px;border:none;background:transparent;color:#aaa;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+.nav-tab:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-tab.active{background:#fff;color:#1a1a1a;font-weight:700}
+.sim-status{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.sim-status.idle{background:#444;color:#888}
+.sim-status.running{background:#1a7a4a22;color:#1a7a4a;border:1px solid #1a7a4a44}
+.sim-status.done{background:#1a7a4a;color:#fff}
+.page{display:none;padding:12px 16px 40px}
+.page.active{display:block}
+.wrap{max-width:1100px;margin:0 auto}
+.card{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.ctitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctitle-right{margin-left:auto;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:#bbb}
+
+/* fleet */
+.frow{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg>span{font-size:11px;color:#666}
+.ctr{display:flex}
+.cb{width:28px;height:28px;border:1px solid rgba(0,0,0,.22);background:#fafafa;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.cb:first-child{border-radius:7px 0 0 7px}.cb:last-child{border-radius:0 7px 7px 0}
+.cb:hover{background:#f0f0f0}
+.cv{width:34px;height:28px;border-top:1px solid rgba(0,0,0,.22);border-bottom:1px solid rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.vd{width:1px;background:rgba(0,0,0,.1);align-self:stretch;margin:0 2px}
+
+/* park table */
+.pt-scroll{overflow-x:auto}
+table.pt{width:100%;border-collapse:separate;border-spacing:0 3px;min-width:400px}
+table.pt th{font-size:10px;font-weight:700;text-transform:uppercase;color:#aaa;padding:1px 5px;text-align:left;white-space:nowrap}
+table.pt td{padding:2px 3px;vertical-align:middle}
+.pi{padding:4px 6px;border-radius:6px;border:1px solid rgba(0,0,0,.18);background:#f7f7f5;font-size:12px;color:#222;width:100%}
+.pi.nm{font-weight:700}
+.pi.goal{border-color:#6366f155;color:#6366f1;font-weight:700}
+.delbtn{width:22px;height:22px;border-radius:5px;border:none;background:#fee8e8;color:#c00;cursor:pointer;font-size:14px;font-weight:900}
+.addbtn{margin-top:6px;width:100%;padding:7px;border-radius:8px;border:1.5px dashed rgba(0,0,0,.2);background:transparent;cursor:pointer;font-size:12px;color:#888}
+.addbtn:hover{background:#f5f5f3}
+
+/* traffic */
+.park-selector{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.park-btn{padding:5px 14px;border-radius:8px;border:2px solid transparent;background:#f4f4f0;cursor:pointer;font-size:12px;font-weight:600}
+.park-btn.active{background:#fff}
+.traffic-scroll{overflow-x:auto;margin-bottom:10px}
+table.tft{width:100%;border-collapse:collapse;font-size:12px;min-width:420px}
+table.tft th{font-size:10px;font-weight:700;text-transform:uppercase;color:#aaa;padding:5px 8px;text-align:center;border-bottom:2px solid rgba(0,0,0,.08);background:#fafafa;white-space:nowrap}
+table.tft th.th-time{text-align:left;width:110px;background:#fafafa}
+table.tft td{padding:2px 3px;border-bottom:1px solid rgba(0,0,0,.04)}
+table.tft td.td-time{padding:4px 8px;font-size:11px;color:#888;font-weight:500;white-space:nowrap}
+table.tft td.td-sum{padding:5px 8px;font-weight:700;background:#f4f4f0;border-top:2px solid rgba(0,0,0,.08);text-align:center}
+.tfi{padding:3px 5px;border-radius:5px;border:1px solid rgba(0,0,0,.14);background:#f7f7f5;font-size:12px;font-weight:600;text-align:center;width:65px;color:#222;display:block;margin:0 auto}
+.tfi:focus{outline:none;border-color:#6366f1;background:#fff}
+.tfi.ci-a{border-left:3px solid #3b82f6}
+.tfi.co-a{border-left:3px solid #ec4899}
+.tfi.ci-p{border-left:3px solid #3b82f688;color:#3b82f6}
+.tfi.co-p{border-left:3px solid #ec489988;color:#ec4899}
+.th-ci{background:#3b82f608!important;color:#3b82f6!important}
+.th-co{background:#ec489908!important;color:#ec4899!important}
+.traffic-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.ts-box{background:#f4f4f0;border-radius:8px;padding:7px 10px}
+.ts-box label{font-size:10px;color:#999;display:block}
+.ts-v{font-size:18px;font-weight:700}
+
+/* heatmap */
+.hm-row{display:flex;gap:2px;align-items:center;margin-bottom:2px}
+.hm-label{width:44px;text-align:right;flex-shrink:0;padding-right:5px;font-size:9px;color:#aaa;font-weight:600}
+.hm-cell{flex:1;height:14px;border-radius:2px;min-width:6px}
+
+/* stats */
+.srow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.sc{background:#f4f4f0;border-radius:8px;padding:7px 9px}
+.sc label{font-size:10px;color:#999;display:block}
+.sv{font-size:18px;font-weight:600}.ss{font-size:10px;color:#999}
+
+/* controls */
+.ctrl{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.btn{padding:5px 13px;border-radius:7px;border:1px solid rgba(0,0,0,.22);background:#fafafa;cursor:pointer;font-size:12px;color:#222}
+.btn:hover{background:#f0f0f0}
+.btn.go{background:#1a1a1a;color:#fff;border-color:transparent}
+.btn.go:hover{background:#333}
+.btn.danger{background:#fee;color:#c00;border-color:#c0000033}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.pbar2{flex:1;min-width:50px;height:4px;background:#ebebeb;border-radius:2px;overflow:hidden}
+.pfill{height:100%;background:#1a7a4a;border-radius:2px;transition:width .3s}
+
+/* live bus overview */
+.buses-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:8px}
+.bus-tile{background:#fff;border-radius:10px;padding:10px 12px;border:2px solid rgba(0,0,0,.08);position:relative}
+.bus-tile.manual{border-style:solid}
+.bt-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bt-badge{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0}
+.bt-name{font-weight:700;font-size:13px}
+.bt-driver{font-size:11px;color:#888}
+.bt-phase{font-size:11px;padding:2px 8px;border-radius:7px;font-weight:600;margin-top:4px;display:inline-block}
+.bt-phase.idle{background:#f4f4f0;color:#888}
+.bt-phase.to_pick{background:#fffbeb;color:#b45309}
+.bt-phase.to_dest{background:#e8f5ee;color:#1a7a4a}
+.pax-mini{height:4px;background:#ebebeb;border-radius:2px;overflow:hidden;margin-top:6px}
+.pax-mini-fill{height:100%;border-radius:2px;transition:width .4s}
+.driver-tag{position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:6px;background:#1a1a1a;color:#f59e0b;font-weight:700}
+
+/* bookings list */
+.bklist{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
+.bkrow{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:5px;font-size:10px;background:#f4f4f0}
+.bkst{font-size:9px;padding:1px 4px;border-radius:5px;font-weight:700;white-space:nowrap;flex-shrink:0}
+
+/* log */
+.log{max-height:100px;overflow-y:auto;font-size:10px;line-height:1.6;color:#888}
+.logline{border-bottom:1px solid rgba(0,0,0,.05);padding:1px 0}
+.logt{color:#ccc;margin-right:3px}
+
+/* sync indicator */
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#1a7a4a;display:inline-block;margin-right:4px}
+.sync-dot.err{background:#c00}
+
+/* paste */
+.paste-area{width:100%;min-height:60px;padding:8px;border-radius:8px;border:1.5px dashed rgba(0,0,0,.2);background:#fafafa;font-size:11px;color:#666;resize:vertical;font-family:monospace}
+.paste-area:focus{outline:none;border-color:#6366f1}
+
+@media(max-width:700px){.srow,.traffic-summary{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="logo">🚌 Shuttle<span>Sim</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('traffic')">📊 Traffic</button>
+    <button class="nav-tab" onclick="showPage('sim')">⚙ Simulation</button>
+    <button class="nav-tab" onclick="showPage('live')">🔴 Live</button>
+    <button class="nav-tab" onclick="showPage('bericht')">📋 Bericht</button>
+  </div>
+  <span id="sync-indicator" style="font-size:11px;color:#888;white-space:nowrap">
+    <span class="sync-dot" id="sync-dot"></span><span id="sync-txt">Verbinde...</span>
+  </span>
+  <div class="sim-status idle" id="simstatus">Bereit</div>
+</div>
+
+<!-- ══ TRAFFIC ══ -->
+<div class="page active" id="page-traffic">
+<div class="wrap">
+<div class="card" style="margin-top:10px">
+  <div class="ctitle">📊 Traffic-Daten pro Parkplatz
+    <span class="ctitle-right">CI = Check-in (→ FLH) · CO = Check-out (FLH →)</span>
+  </div>
+  <div class="park-selector" id="park-selector"></div>
+  <div class="traffic-summary" id="traffic-summary"></div>
+  <div class="traffic-scroll">
+    <table class="tft" id="tft">
+      <thead>
+        <tr>
+          <th class="th-time" rowspan="2">Stunde</th>
+          <th colspan="2" class="th-ci">Check-in → FLH</th>
+          <th colspan="2" class="th-co">Check-out FLH →</th>
+        </tr>
+        <tr>
+          <th class="th-ci">Autos CI</th><th class="th-ci">Personen CI</th>
+          <th class="th-co">Autos CO</th><th class="th-co">Personen CO</th>
+        </tr>
+      </thead>
+      <tbody id="tft-body"></tbody>
+      <tfoot id="tft-foot"></tfoot>
+    </table>
+  </div>
+  <details style="margin-top:8px">
+    <summary style="cursor:pointer;font-size:11px;color:#6366f1;font-weight:600;padding:4px 0">📋 Excel einfügen</summary>
+    <div style="margin-top:8px">
+      <textarea class="paste-area" id="paste-area" placeholder="4 Spalten, 24 Zeilen: Autos CI | Personen CI | Autos CO | Personen CO"></textarea>
+      <button class="btn go" style="margin-top:6px" onclick="parsePaste()">Importieren</button>
+      <span id="paste-status" style="font-size:11px;color:#1a7a4a;margin-left:8px"></span>
+    </div>
+  </details>
+</div>
+<div class="card">
+  <div class="ctitle">🔥 Heatmap</div>
+  <div id="heatmap-wrap"></div>
+</div>
+</div>
+</div>
+
+<!-- ══ SIMULATION CONFIG ══ -->
+<div class="page" id="page-sim">
+<div class="wrap">
+<div class="card" style="margin-top:10px">
+  <div class="ctitle">🚌 Flotte</div>
+  <div class="frow">
+    <div class="fg">
+      <span>🔵 Kleinbus (8P)</span>
+      <div class="ctr"><button class="cb" id="b8m">−</button><div class="cv" id="n8">2</div><button class="cb" id="b8p">+</button></div>
+    </div>
+    <div class="fg">
+      <span>🟣 Großbus (19P)</span>
+      <div class="ctr"><button class="cb" id="b19m">−</button><div class="cv" id="n19">2</div><button class="cb" id="b19p">+</button></div>
+    </div>
+    <div class="vd"></div>
+    <div class="fg">
+      <span>Gesamt</span>
+      <div id="fcap" style="font-size:16px;font-weight:700;padding-top:3px">54 Sitze</div>
+      <div id="fdet" style="font-size:10px;color:#999">2×8P + 2×19P</div>
+    </div>
+    <div class="vd"></div>
+    <div class="fg">
+      <span style="font-weight:700">📊 Traffic-Buchungen</span>
+      <div id="traffic-info" style="font-size:12px;color:#f59e0b;font-weight:600;margin-top:2px">—</div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="ctitle">🅿 Parkplätze</div>
+  <div class="pt-scroll">
+    <table class="pt">
+      <thead><tr><th></th><th>Name</th><th>km</th><th>Min</th><th style="color:#6366f1">Ziel%</th><th style="color:#6366f1">≤Min</th><th></th></tr></thead>
+      <tbody id="ptb"></tbody>
+    </table>
+  </div>
+  <button class="addbtn" id="addbtn">＋ Parkplatz hinzufügen</button>
+</div>
+<div class="card">
+  <div class="ctitle">🎮 Simulation steuern</div>
+  <div class="ctrl">
+    <button class="btn go" id="btnstart">▶ Simulation starten</button>
+    <button class="btn danger" id="btnreset" disabled>↺ Reset</button>
+  </div>
+  <div style="font-size:11px;color:#aaa;line-height:1.6;margin-top:4px">
+    Nach dem Start können Fahrer über <strong>driver.html</strong> Busse übernehmen.<br>
+    Die Simulation läuft ohne Takt — alles passiert durch Fahrer-Aktionen.
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ══ LIVE OVERVIEW ══ -->
+<div class="page" id="page-live">
+<div class="wrap">
+
+<div style="margin-top:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <div class="srow" style="flex:1;min-width:0;margin-bottom:0">
+    <div class="sc"><label>Buchungen gesamt</label><div class="sv" id="l-total">0</div><div class="ss" id="l-total-sub">—</div></div>
+    <div class="sc"><label>Abgeschlossen</label><div class="sv" id="l-done" style="color:#1a7a4a">0</div><div class="ss" id="l-done-pct">0%</div></div>
+    <div class="sc"><label>Ø Wartezeit</label><div class="sv" id="l-avg">—</div><div class="ss">Minuten</div></div>
+    <div class="sc"><label>Aktive Fahrer</label><div class="sv" id="l-drivers" style="color:#f59e0b">0</div><div class="ss">von <span id="l-buses-total">0</span> Bussen</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ctitle">🚌 Bus-Status Live
+    <span class="ctitle-right" id="last-update">—</span>
+  </div>
+  <div class="buses-grid" id="buses-grid"></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <div class="card">
+    <div class="ctitle">📋 Buchungen</div>
+    <div class="bklist" id="bklist"></div>
+  </div>
+  <div class="card">
+    <div class="ctitle">📜 Log</div>
+    <div class="log" id="logel"></div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ══ BERICHT ══ -->
+<div class="page" id="page-bericht">
+<div class="wrap">
+<div class="card" style="margin-top:10px">
+  <div class="ctitle">📋 Bericht</div>
+  <div id="bericht-content"><div style="color:#aaa;padding:20px;text-align:center">Simulation starten und abschließen für Bericht</div></div>
+</div>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://qhgmjoostsekmwnnmiwz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MbdmyXHf1iYzxCD0cP9G_g_SF679Ukp';
+const PC=['#6366f1','#ec4899','#f97316','#10b981','#0ea5e9','#f59e0b','#8b5cf6','#14b8a6'];
+const pc=i=>PC[i%PC.length];
+const HOURS=['00–01','01–02','02–03','03–04','04–05','05–06','06–07','07–08','08–09','09–10',
+  '10–11','11–12','12–13','13–14','14–15','15–16','16–17','17–18','18–19','19–20',
+  '20–21','21–22','22–23','23–00'];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let pid=10;
+let parks=[
+  {id:1,name:'P1',km:3.2,mins:4,gp:90,gm:10},
+  {id:2,name:'P2',km:4.2,mins:6,gp:85,gm:12},
+  {id:3,name:'P3',km:5.3,mins:8,gp:80,gm:15},
+];
+let fl={s:2,l:2};
+let trafficData={};
+let activePark=null;
+let simRunning=false;
+let logs=[];
+
+// Live data from Supabase
+let liveBuses=[], liveBookings=[], liveTrips=[];
+let pollingInterval=null;
+let currentPage='traffic';
+
+// ══════════════════════════════════════════
+// SUPABASE
+// ══════════════════════════════════════════
+async function sb(path, method='GET', body=null){
+  const opts={
+    method,
+    headers:{
+      'apikey':SUPABASE_KEY,
+      'Authorization':'Bearer '+SUPABASE_KEY,
+      'Content-Type':'application/json',
+      'Prefer': method==='POST'?'resolution=merge-duplicates,return=representation':'return=representation'
+    }
+  };
+  if(body) opts.body=JSON.stringify(body);
+  const res=await fetch(SUPABASE_URL+'/rest/v1/'+path, opts);
+  if(!res.ok){ const e=await res.text(); throw new Error(e); }
+  const t=await res.text();
+  return t?JSON.parse(t):null;
+}
+
+function setSyncStatus(ok, txt){
+  document.getElementById('sync-dot').className='sync-dot'+(ok?'':' err');
+  document.getElementById('sync-txt').textContent=txt;
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function showPage(p){
+  currentPage=p;
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  const idx={traffic:0,sim:1,live:2,bericht:3}[p]??0;
+  document.querySelectorAll('.nav-tab')[idx].classList.add('active');
+  if(p==='traffic') buildTrafficUI();
+  if(p==='live') renderLive();
+  if(p==='bericht') renderBericht();
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+async function init(){
+  initTraffic();
+  updFleet();
+  rebuildPT();
+  buildTrafficUI();
+  try {
+    // Load existing sim state if any
+    const rows=await sb('sim_state?id=eq.main');
+    if(rows&&rows[0]){
+      const s=rows[0];
+      if(s.parks){ const p=typeof s.parks==='string'?JSON.parse(s.parks):s.parks; if(p.length) parks=p; }
+      if(s.fleet){ const f=typeof s.fleet==='string'?JSON.parse(s.fleet):s.fleet; fl=f; }
+      if(s.traffic){ trafficData=typeof s.traffic==='string'?JSON.parse(s.traffic):s.traffic; }
+      if(s.status==='running') simRunning=true;
+      updFleet(); rebuildPT(); buildTrafficUI();
+      if(simRunning){ setSimRunning(); }
+    }
+    setSyncStatus(true,'Verbunden');
+  } catch(e){ setSyncStatus(false,'Offline'); }
+  startPolling();
+}
+
+function startPolling(){
+  if(pollingInterval) clearInterval(pollingInterval);
+  pollingInterval=setInterval(async()=>{
+    try {
+      const [busRows,bkRows,tripRows]=await Promise.all([
+        sb('buses?order=id'),
+        sb('bookings?order=born_min'),
+        sb('trips?order=id')
+      ]);
+      liveBuses=busRows||[];
+      liveBookings=bkRows||[];
+      liveTrips=tripRows||[];
+      setSyncStatus(true,'Live · '+new Date().toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+      document.getElementById('last-update').textContent='Zuletzt: '+new Date().toLocaleTimeString('de');
+      if(currentPage==='live') renderLive();
+      if(currentPage==='bericht') renderBericht();
+      updateLiveStats();
+    } catch(e){ setSyncStatus(false,'Fehler'); }
+  },3000);
+}
+
+// ══════════════════════════════════════════
+// TRAFFIC UI
+// ══════════════════════════════════════════
+function initTraffic(){
+  parks.forEach(p=>{
+    if(!trafficData[p.name])
+      trafficData[p.name]=Array.from({length:24},()=>({autosCI:0,personenCI:0,autosCO:0,personenCO:0}));
+  });
+}
+
+function buildTrafficUI(){
+  initTraffic();
+  if(!activePark||!parks.find(p=>p.name===activePark)) activePark=parks[0]?.name;
+  const sel=document.getElementById('park-selector');
+  sel.innerHTML='<span style="font-size:11px;color:#666;margin-right:4px">Parkplatz:</span>';
+  parks.forEach((p,i)=>{
+    const c=pc(i);
+    const btn=document.createElement('button');
+    btn.className='park-btn'+(p.name===activePark?' active':'');
+    btn.style.color=c;
+    btn.style.borderColor=(p.name===activePark)?c:'transparent';
+    btn.textContent=p.name;
+    btn.onclick=()=>{ activePark=p.name; buildTrafficUI(); };
+    sel.appendChild(btn);
+  });
+  buildTrafficTable();
+  buildTrafficSummary();
+  buildHeatmap();
+  updateTrafficInfo();
+}
+
+function buildTrafficTable(){
+  const body=document.getElementById('tft-body');
+  const foot=document.getElementById('tft-foot');
+  const d=trafficData[activePark]||[];
+  body.innerHTML=d.map((row,h)=>`
+    <tr>
+      <td class="td-time">${HOURS[h]}</td>
+      <td><input class="tfi ci-a" type="number" min="0" value="${row.autosCI}" data-h="${h}" data-f="autosCI"></td>
+      <td><input class="tfi ci-p" type="number" min="0" value="${row.personenCI}" data-h="${h}" data-f="personenCI"></td>
+      <td><input class="tfi co-a" type="number" min="0" value="${row.autosCO}" data-h="${h}" data-f="autosCO"></td>
+      <td><input class="tfi co-p" type="number" min="0" value="${row.personenCO}" data-h="${h}" data-f="personenCO"></td>
+    </tr>`).join('');
+  const sums={autosCI:0,personenCI:0,autosCO:0,personenCO:0};
+  d.forEach(r=>{sums.autosCI+=r.autosCI;sums.personenCI+=r.personenCI;sums.autosCO+=r.autosCO;sums.personenCO+=r.personenCO;});
+  foot.innerHTML=`<tr>
+    <td class="td-time td-sum" style="text-align:left;color:#1a1a1a">Summe</td>
+    <td class="td-sum" style="color:#3b82f6">${sums.autosCI}</td>
+    <td class="td-sum" style="color:#3b82f688">${sums.personenCI}</td>
+    <td class="td-sum" style="color:#ec4899">${sums.autosCO}</td>
+    <td class="td-sum" style="color:#ec489988">${sums.personenCO}</td>
+  </tr>`;
+  body.querySelectorAll('.tfi').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      trafficData[activePark][parseInt(inp.dataset.h)][inp.dataset.f]=parseInt(inp.value)||0;
+      buildTrafficTable(); buildTrafficSummary(); buildHeatmap(); updateTrafficInfo();
+    });
+  });
+}
+
+function buildTrafficSummary(){
+  const all=Object.values(trafficData).flat();
+  const a=s=>all.reduce((t,r)=>t+r[s],0);
+  document.getElementById('traffic-summary').innerHTML=`
+    <div class="ts-box"><label>Autos CI</label><div class="ts-v" style="color:#3b82f6">${a('autosCI')}</div></div>
+    <div class="ts-box"><label>Personen CI</label><div class="ts-v" style="color:#3b82f688">${a('personenCI')}</div></div>
+    <div class="ts-box"><label>Autos CO</label><div class="ts-v" style="color:#ec4899">${a('autosCO')}</div></div>
+    <div class="ts-box"><label>Personen CO</label><div class="ts-v" style="color:#ec489988">${a('personenCO')}</div></div>`;
+}
+
+function buildHeatmap(){
+  const el=document.getElementById('heatmap-wrap'); if(!el) return;
+  let maxVal=1;
+  parks.forEach(p=>{ (trafficData[p.name]||[]).forEach(r=>{ maxVal=Math.max(maxVal,r.personenCI,r.personenCO); }); });
+  let html='<div class="hm-row"><div class="hm-label"></div>';
+  for(let h=0;h<24;h++) html+=`<div class="hm-cell" style="background:transparent;font-size:8px;text-align:center;color:#ccc;height:12px;line-height:12px">${h}</div>`;
+  html+='</div>';
+  parks.forEach((p,i)=>{
+    const d=trafficData[p.name]||[], c=pc(i);
+    html+=`<div class="hm-row"><div class="hm-label" style="color:${c}">${p.name} CI</div>`;
+    for(let h=0;h<24;h++){ const v=d[h]?d[h].personenCI:0; const op=v===0?0.06:0.12+v/maxVal*0.88; html+=`<div class="hm-cell" style="background:${c};opacity:${op.toFixed(2)}"></div>`; }
+    html+='</div>';
+    html+=`<div class="hm-row"><div class="hm-label" style="color:#ec4899;font-size:8px">${p.name} CO</div>`;
+    for(let h=0;h<24;h++){ const v=d[h]?d[h].personenCO:0; const op=v===0?0.06:0.12+v/maxVal*0.88; html+=`<div class="hm-cell" style="background:#ec4899;opacity:${op.toFixed(2)}"></div>`; }
+    html+='</div>';
+  });
+  el.innerHTML=html;
+}
+
+function parsePaste(){
+  const raw=document.getElementById('paste-area').value.trim();
+  if(!raw) return;
+  const lines=raw.split('\n').filter(l=>l.trim());
+  let count=0;
+  lines.slice(0,24).forEach((line,h)=>{
+    const cols=line.split(/\t/).map(v=>parseInt(v.replace(/[^0-9]/g,''))||0);
+    if(cols.length>=4){ trafficData[activePark][h]={autosCI:cols[0],personenCI:cols[1],autosCO:cols[2],personenCO:cols[3]}; count++; }
+  });
+  document.getElementById('paste-status').textContent='✓ '+count+' Stunden importiert';
+  buildTrafficTable(); buildTrafficSummary(); buildHeatmap(); updateTrafficInfo();
+}
+
+function updateTrafficInfo(){
+  let n=0;
+  parks.forEach(p=>{ (trafficData[p.name]||[]).forEach(r=>{ n+=r.autosCI+r.autosCO; }); });
+  const el=document.getElementById('traffic-info');
+  el.textContent=n>0?n+' Buchungen aus Traffic':'Keine Daten — Demo-Modus';
+  el.style.color=n>0?'#1a7a4a':'#f59e0b';
+}
+
+// ══════════════════════════════════════════
+// PARK TABLE
+// ══════════════════════════════════════════
+function rebuildPT(){
+  const tb=document.getElementById('ptb'); tb.innerHTML='';
+  parks.forEach((p,i)=>{
+    const c=pc(i), tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div style="width:9px;height:9px;border-radius:50%;background:${c}"></div></td>
+      <td style="width:70px"><input class="pi nm" value="${p.name}" style="color:${c}" data-id="${p.id}" data-f="name"></td>
+      <td style="width:60px"><input class="pi" type="number" min="0.1" step="0.1" value="${p.km}" data-id="${p.id}" data-f="km"></td>
+      <td style="width:60px"><input class="pi" type="number" min="1" step="1" value="${p.mins}" data-id="${p.id}" data-f="mins"></td>
+      <td style="width:60px"><input class="pi goal" type="number" min="1" max="100" value="${p.gp}" data-id="${p.id}" data-f="gp"></td>
+      <td style="width:60px"><input class="pi goal" type="number" min="1" max="120" value="${p.gm}" data-id="${p.id}" data-f="gm"></td>
+      <td>${parks.length>1?`<button class="delbtn" data-id="${p.id}">×</button>`:''}</td>`;
+    tb.appendChild(tr);
+  });
+}
+document.getElementById('ptb').addEventListener('input',e=>{
+  const el=e.target; if(!el.dataset.id) return;
+  const p=parks.find(x=>x.id===parseInt(el.dataset.id)); if(!p) return;
+  const old=p.name, f=el.dataset.f;
+  p[f]=['km','mins','gp','gm'].includes(f)?parseFloat(el.value)||0:el.value;
+  if(f==='name'&&old!==p.name){ trafficData[p.name]=trafficData[old]||Array.from({length:24},()=>({autosCI:0,personenCI:0,autosCO:0,personenCO:0})); delete trafficData[old]; if(activePark===old) activePark=p.name; }
+});
+document.getElementById('ptb').addEventListener('click',e=>{
+  const btn=e.target.closest('.delbtn'); if(!btn||parks.length<=1) return;
+  const rem=parks.find(x=>x.id===parseInt(btn.dataset.id));
+  parks=parks.filter(x=>x.id!==parseInt(btn.dataset.id));
+  if(rem) delete trafficData[rem.name];
+  rebuildPT();
+});
+document.getElementById('addbtn').addEventListener('click',()=>{
+  const nm='P'+(parks.length+1);
+  parks.push({id:pid++,name:nm,km:3,mins:5,gp:85,gm:10});
+  trafficData[nm]=Array.from({length:24},()=>({autosCI:0,personenCI:0,autosCO:0,personenCO:0}));
+  rebuildPT();
+});
+
+// ══════════════════════════════════════════
+// FLEET
+// ══════════════════════════════════════════
+document.getElementById('b8m').addEventListener('click',()=>{ fl.s=Math.max(0,fl.s-1); updFleet(); });
+document.getElementById('b8p').addEventListener('click',()=>{ fl.s=Math.min(10,fl.s+1); updFleet(); });
+document.getElementById('b19m').addEventListener('click',()=>{ fl.l=Math.max(0,fl.l-1); updFleet(); });
+document.getElementById('b19p').addEventListener('click',()=>{ fl.l=Math.min(10,fl.l+1); updFleet(); });
+function updFleet(){
+  document.getElementById('n8').textContent=fl.s;
+  document.getElementById('n19').textContent=fl.l;
+  document.getElementById('fcap').textContent=(fl.s*8+fl.l*19)+' Sitze';
+  document.getElementById('fdet').textContent=fl.s+'×8P + '+fl.l+'×19P';
+}
+
+// ══════════════════════════════════════════
+// START SIMULATION
+// ══════════════════════════════════════════
+document.getElementById('btnstart').addEventListener('click', startSim);
+document.getElementById('btnreset').addEventListener('click', resetSim);
+
+async function startSim(){
+  if(fl.s+fl.l===0){ alert('Mindestens 1 Bus!'); return; }
+  document.getElementById('btnstart').disabled=true;
+
+  try {
+    // Build bookings
+    const bookings=buildBookings();
+    // Build buses
+    const busRows=buildBusRows();
+
+    // Clear old data
+    await sb('bookings?id=neq.NEVER','DELETE');
+    await sb('buses?id=neq.0','DELETE');
+    await sb('trips?id=neq.NEVER','DELETE');
+
+    // Insert buses
+    for(const b of busRows){ await sb('buses','POST',b); }
+
+    // Insert bookings in chunks
+    const chunk=50;
+    for(let i=0;i<bookings.length;i+=chunk){
+      await sb('bookings','POST',bookings.slice(i,i+chunk));
+    }
+
+    // Save sim state
+    await sb('sim_state','POST',{
+      id:'main', status:'running',
+      parks:JSON.stringify(parks),
+      fleet:JSON.stringify(fl),
+      traffic:JSON.stringify(trafficData),
+      sim_min:0
+    });
+
+    simRunning=true;
+    setSimRunning();
+    addLog('🚀 Simulation gestartet · '+bookings.length+' Buchungen · '+busRows.length+' Busse');
+    showPage('live');
+  } catch(e){
+    alert('Fehler beim Starten: '+e.message);
+    document.getElementById('btnstart').disabled=false;
+  }
+}
+
+async function resetSim(){
+  if(!confirm('Simulation zurücksetzen? Alle Daten werden gelöscht.')) return;
+  try {
+    await sb('bookings?id=neq.NEVER','DELETE');
+    await sb('buses?id=neq.0','DELETE');
+    await sb('trips?id=neq.NEVER','DELETE');
+    await sb('sim_state','POST',{id:'main',status:'idle',parks:'[]',fleet:'{"s":2,"l":2}',traffic:'{}',sim_min:0});
+    simRunning=false; liveBuses=[]; liveBookings=[]; liveTrips=[]; logs=[];
+    setSimIdle();
+    showPage('sim');
+  } catch(e){ alert('Fehler: '+e.message); }
+}
+
+function setSimRunning(){
+  document.getElementById('simstatus').className='sim-status running';
+  document.getElementById('simstatus').textContent='Läuft';
+  document.getElementById('btnstart').disabled=true;
+  document.getElementById('btnreset').disabled=false;
+}
+function setSimIdle(){
+  document.getElementById('simstatus').className='sim-status idle';
+  document.getElementById('simstatus').textContent='Bereit';
+  document.getElementById('btnstart').disabled=false;
+  document.getElementById('btnreset').disabled=true;
+}
+
+// ══════════════════════════════════════════
+// BUILD DATA
+// ══════════════════════════════════════════
+function buildBookings(){
+  initTraffic();
+  const list=[];
+  let idx=1;
+  parks.forEach(p=>{
+    const d=trafficData[p.name]||[];
+    d.forEach((row,h)=>{
+      if(row.autosCI>0){
+        const avgP=row.personenCI>0?row.personenCI/row.autosCI:1;
+        for(let a=0;a<row.autosCI;a++){
+          list.push({id:'B'+String(idx++).padStart(4,'0'),from_loc:p.name,to_loc:'FLH',persons:Math.max(1,Math.round(avgP)),status:'ready',bus_id:null,trip_id:null,born_min:h*60+Math.floor(Math.random()*60),ws:0,wm:null,pickup_min:null,arrive_min:null});
+        }
+      }
+      if(row.autosCO>0){
+        const avgP=row.personenCO>0?row.personenCO/row.autosCO:1;
+        for(let a=0;a<row.autosCO;a++){
+          list.push({id:'B'+String(idx++).padStart(4,'0'),from_loc:'FLH',to_loc:p.name,persons:Math.max(1,Math.round(avgP)),status:'ready',bus_id:null,trip_id:null,born_min:h*60+Math.floor(Math.random()*60),ws:0,wm:null,pickup_min:null,arrive_min:null});
+        }
+      }
+    });
+  });
+  // Demo fallback
+  if(list.length===0){
+    const pkeys=parks.map(p=>p.name);
+    for(let i=0;i<30;i++){
+      const fromFLH=Math.random()<0.3, pk=pkeys[Math.floor(Math.random()*pkeys.length)];
+      list.push({id:'B'+String(idx++).padStart(4,'0'),from_loc:fromFLH?'FLH':pk,to_loc:fromFLH?pk:'FLH',persons:Math.floor(Math.random()*3)+1,status:'ready',bus_id:null,trip_id:null,born_min:Math.floor(i*5),ws:0,wm:null,pickup_min:null,arrive_min:null});
+    }
+  }
+  return list.sort((a,b)=>a.born_min-b.born_min);
+}
+
+function buildBusRows(){
+  const cs=['#3b82f6','#2563eb','#0ea5e9','#1d4ed8','#38bdf8','#60a5fa','#0284c7','#0369a1','#075985','#0c4a6e'];
+  const cl=['#8b5cf6','#7c3aed','#a78bfa','#6d28d9','#c4b5fd','#4c1d95','#9333ea','#7e22ce','#6b21a8','#581c87'];
+  const list=[]; let id=1;
+  for(let i=0;i<fl.s;i++) list.push({id:id++,cap:8,col:cs[i%cs.length],loc:'FLH',pax:0,phase:'idle',pick_at:null,dest_at:null,current_trip:null,driver_name:null,manual:false});
+  for(let i=0;i<fl.l;i++) list.push({id:id++,cap:19,col:cl[i%cl.length],loc:'FLH',pax:0,phase:'idle',pick_at:null,dest_at:null,current_trip:null,driver_name:null,manual:false});
+  return list;
+}
+
+// ══════════════════════════════════════════
+// LIVE RENDER
+// ══════════════════════════════════════════
+function updateLiveStats(){
+  const total=liveBookings.length;
+  const done=liveBookings.filter(b=>b.status==='done').length;
+  const wts=liveBookings.filter(b=>b.wm>0).map(b=>b.wm);
+  const avg=wts.length?Math.round(wts.reduce((a,b)=>a+b,0)/wts.length):null;
+  const drivers=liveBuses.filter(b=>b.driver_name).length;
+  document.getElementById('l-total').textContent=total;
+  document.getElementById('l-total-sub').textContent=liveBookings.filter(b=>b.status==='ready').length+' wartend';
+  document.getElementById('l-done').textContent=done;
+  document.getElementById('l-done-pct').textContent=total?Math.round(done/total*100)+'%':'0%';
+  document.getElementById('l-avg').textContent=avg??'—';
+  document.getElementById('l-drivers').textContent=drivers;
+  document.getElementById('l-buses-total').textContent=liveBuses.length;
+}
+
+function renderLive(){
+  updateLiveStats();
+  // Buses grid
+  const el=document.getElementById('buses-grid');
+  el.innerHTML=liveBuses.map(bus=>{
+    const col=bus.col||pc(bus.id-1);
+    const ph={idle:'Bereit',to_pick:'→ Abholung',to_dest:'→ Ziel'}[bus.phase]||bus.phase;
+    const hasDriver=bus.driver_name;
+    return `<div class="bus-tile ${hasDriver?'manual':''}" style="${hasDriver?'border-color:'+col:''}">
+      ${hasDriver?`<div class="driver-tag">👤 ${bus.driver_name}</div>`:''}
+      <div class="bt-top">
+        <div class="bt-badge" style="background:${col}">${bus.id}</div>
+        <div>
+          <div class="bt-name">Bus ${bus.id} · ${bus.cap}P</div>
+          <div class="bt-driver">${hasDriver?'Fahrer: '+bus.driver_name:'Kein Fahrer'}</div>
+        </div>
+      </div>
+      <span class="bt-phase ${bus.phase}">${ph}</span>
+      ${bus.phase!=='idle'?`<div style="font-size:10px;color:#888;margin-top:4px">${bus.loc||'FLH'} → ${bus.dest_at||'?'}</div>`:'<div style="font-size:10px;color:#888;margin-top:4px">@ ${bus.loc||'FLH'}</div>'}
+      <div class="pax-mini"><div class="pax-mini-fill" style="width:${Math.round((bus.pax||0)/bus.cap*100)}%;background:${col}"></div></div>
+      <div style="font-size:10px;color:#aaa;margin-top:2px">${bus.pax||0}/${bus.cap} Pax</div>
+    </div>`;
+  }).join('');
+
+  // Bookings
+  const bel=document.getElementById('bklist');
+  const SC={wait:'#bbb',ready:'#6366f1',ride:'#3b82f6',done:'#1a7a4a'};
+  const SL={wait:'Wartet',ready:'Bereit',ride:'Fährt',done:'✓'};
+  const sorted=[...liveBookings].sort((a,b)=>({done:0,ride:1,ready:2,wait:3}[a.status]??5)-({done:0,ride:1,ready:2,wait:3}[b.status]??5));
+  bel.innerHTML=sorted.slice(0,60).map(b=>{
+    const c=SC[b.status]||'#bbb';
+    const fi=parks.findIndex(p=>p.name===b.from_loc), fc=b.from_loc==='FLH'?'#1a7a4a':fi>=0?pc(fi):'#888';
+    const ti=parks.findIndex(p=>p.name===b.to_loc), tc=b.to_loc==='FLH'?'#1a7a4a':ti>=0?pc(ti):'#888';
+    return `<div class="bkrow">
+      <div style="color:#ccc;width:36px;flex-shrink:0;font-size:9px">${b.id}</div>
+      <div style="flex:1"><span style="color:${fc};font-weight:700">${b.from_loc}</span>→<span style="color:${tc};font-weight:700">${b.to_loc}</span></div>
+      <div style="color:${b.wm>0?(b.wm<=10?'#1a7a4a':'#c00'):'#ccc'};width:24px;text-align:right;font-weight:700">${b.wm>0?b.wm+'m':'–'}</div>
+      <div class="bkst" style="background:${c}18;color:${c}">${SL[b.status]||b.status}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// BERICHT
+// ══════════════════════════════════════════
+function renderBericht(){
+  const el=document.getElementById('bericht-content');
+  if(!liveBookings.length){ el.innerHTML='<div style="color:#aaa;padding:20px;text-align:center">Keine Daten — Simulation starten</div>'; return; }
+  const total=liveTrips.length;
+  const leer=liveTrips.filter(t=>t.leer_fahrt).length;
+  const direkt=total-leer;
+  const done=liveBookings.filter(b=>b.status==='done');
+  const wts=done.filter(b=>b.wm>0).map(b=>b.wm);
+  const avg=wts.length?Math.round(wts.reduce((a,b)=>a+b,0)/wts.length):null;
+  const max=wts.length?Math.max(...wts):null;
+
+  const direktPax=liveTrips.filter(t=>!t.leer_fahrt).map(t=>{
+    const ids=typeof t.booking_ids==='string'?JSON.parse(t.booking_ids):t.booking_ids;
+    return liveBookings.filter(b=>ids.includes(b.id)).reduce((s,b)=>s+b.persons,0);
+  });
+  const avgPax=direktPax.length?(direktPax.reduce((a,b)=>a+b,0)/direktPax.length).toFixed(1):0;
+
+  // Per-bus
+  const busStats=liveBuses.map(bus=>{
+    const bt=liveTrips.filter(t=>t.bus_id===bus.id);
+    const bl=bt.filter(t=>t.leer_fahrt).length;
+    const myBks=liveBookings.filter(b=>b.bus_id===bus.id&&b.wm>0);
+    const avgW=myBks.length?Math.round(myBks.reduce((s,b)=>s+b.wm,0)/myBks.length):null;
+    return {bus,trips:bt.length,leer:bl,direkt:bt.length-bl,avgW,driver:bus.driver_name||'Auto'};
+  });
+
+  el.innerHTML=`
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+    <div class="sc"><label>Fahrten gesamt</label><div class="sv">${total}</div></div>
+    <div class="sc"><label>Leerfahrten</label><div class="sv" style="color:#b45309">${leer}</div><div class="ss">${total?Math.round(leer/total*100):0}%</div></div>
+    <div class="sc"><label>Direktfahrten</label><div class="sv" style="color:#1a7a4a">${direkt}</div></div>
+    <div class="sc"><label>Ø Pax/Direktfahrt</label><div class="sv" style="color:#6366f1">${avgPax}</div></div>
+    <div class="sc"><label>Buchungen done</label><div class="sv">${done.length}</div><div class="ss">von ${liveBookings.length}</div></div>
+    <div class="sc"><label>Ø Wartezeit</label><div class="sv">${avg??'—'}</div><div class="ss">Minuten</div></div>
+    <div class="sc"><label>Max Wartezeit</label><div class="sv">${max??'—'}</div><div class="ss">Minuten</div></div>
+    <div class="sc"><label>Aktive Fahrer</label><div class="sv">${liveBuses.filter(b=>b.driver_name).length}</div></div>
+  </div>
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;margin-bottom:6px">Pro Bus</div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f4f4f0">
+      <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:700;color:#aaa">Bus</th>
+      <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:700;color:#aaa">Fahrer</th>
+      <th style="padding:6px 10px;text-align:right;font-size:10px;font-weight:700;color:#aaa">Fahrten</th>
+      <th style="padding:6px 10px;text-align:right;font-size:10px;font-weight:700;color:#b45309">Leer</th>
+      <th style="padding:6px 10px;text-align:right;font-size:10px;font-weight:700;color:#1a7a4a">Direkt</th>
+      <th style="padding:6px 10px;text-align:right;font-size:10px;font-weight:700;color:#aaa">Ø Wartezeit</th>
+    </tr></thead>
+    <tbody>${busStats.map(s=>`<tr style="border-bottom:1px solid rgba(0,0,0,.05)">
+      <td style="padding:7px 10px"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:18px;height:18px;border-radius:50%;background:${s.bus.col};display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:900">${s.bus.id}</span>${s.bus.cap}P</span></td>
+      <td style="padding:7px 10px;color:#888">${s.driver}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700">${s.trips}</td>
+      <td style="padding:7px 10px;text-align:right;color:#b45309;font-weight:700">${s.leer}</td>
+      <td style="padding:7px 10px;text-align:right;color:#1a7a4a;font-weight:700">${s.direkt}</td>
+      <td style="padding:7px 10px;text-align:right;color:#888">${s.avgW!=null?s.avgW+'m':'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function addLog(msg){
+  logs.unshift({t:new Date().toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit'}),msg});
+  if(logs.length>50) logs.pop();
+  const el=document.getElementById('logel'); if(!el) return;
+  el.innerHTML=logs.slice(0,30).map(l=>`<div class="logline"><span class="logt">${l.t}</span>${l.msg}</div>`).join('');
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
