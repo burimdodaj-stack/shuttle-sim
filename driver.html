@@ -518,63 +518,96 @@ function buildCockpitState(bus, col){
       return;
     }
 
-    // Customers here → show board button
+    // Customers here → show exact booking list + board button
     if(here.length > 0){
       const best = here[0];
-      const fc=locColor(best.from), tc=locColor(best.to);
+
+      // Which bookings fit exactly in this bus
+      let willLoad=[], willPax=0;
+      for(const b of best.list){
+        if(willPax+b.persons<=bus.cap){ willLoad.push(b); willPax+=b.persons; }
+      }
+      const remaining = best.list.length - willLoad.length;
+
       instrArea.innerHTML = makeInstrCard(col,
-        'Schritt 1 — Kunden einsteigen lassen',
-        best.p + (best.p===1?' Person wartet':' Personen warten'),
-        best.list.length + ' Buchungen warten bei dir (' + bus.loc + ')',
-        best.from, best.to,
-        '👆', 'Drücke den Knopf um die Kunden einsteigen zu lassen.'
+        'Schritt 1 — Diese Kunden einsteigen lassen',
+        willPax + 'P · ' + willLoad.length + ' Buchungen für dich',
+        'Ziel: ' + locLabel(best.to) + (remaining > 0 ? ' · '+remaining+' bleiben zurück (Bus voll)' : ''),
+        bus.loc, best.to,
+        '👆', 'Drücke den Knopf — genau diese Buchungen steigen ein.'
       );
+
+      // Append exact booking list via DOM (no escaping issues)
+      const cardEl = instrArea.querySelector('.instr-top');
+      if(cardEl){
+        const listDiv = document.createElement('div');
+        listDiv.style.cssText = 'margin-top:12px;display:flex;flex-direction:column;gap:6px';
+        willLoad.forEach(b=>{
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,.18);border-radius:10px';
+          row.innerHTML = '<div>'
+            + '<div style="font-weight:800;font-size:15px">'+b.id+'</div>'
+            + '<div style="font-size:12px;opacity:.7;margin-top:2px">'+b.from_loc+' → '+b.to_loc+'</div>'
+            + '</div>'
+            + '<div style="font-size:20px;font-weight:900;background:rgba(255,255,255,.2);padding:5px 14px;border-radius:8px">'+b.persons+'P</div>';
+          listDiv.appendChild(row);
+        });
+        cardEl.appendChild(listDiv);
+      }
+
       actionBtn.className='action-btn a-green';
       actionBtn.disabled=false;
-      actionBtn.innerHTML='🧑 Kunden einsteigen lassen';
+      actionBtn.innerHTML='🧑 ' + willLoad.length + ' Buchungen (' + willPax + 'P) einsteigen lassen';
       actionBtn.onclick=()=>doBoard(best.from, best.to);
 
-      // show away groups below
+      // Away groups below — use DOM too
       if(away.length){
-        groupArea.innerHTML='<div style="padding:0 16px;margin-top:4px;font-size:12px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Auch wartend (woanders)</div>'+
-          away.slice(0,3).map(g=>{
-            const fc=locColor(g.from),tc=locColor(g.to);
-            return `<div class="group-item" onclick="doDriveTo('${g.from}','${g.to}')">
-              <div class="group-route">
-                <div class="group-from-to">
-                  <span style="color:${fc};font-weight:800">${locLabel(g.from)}</span>
-                  <span style="color:#ccc">→</span>
-                  <span style="color:${tc};font-weight:800">${locLabel(g.to)}</span>
-                </div>
-                <div class="group-meta">${g.list.length} Buchungen · ${g.p} Personen</div>
-              </div>
-              <span class="group-badge away">Hinfahren</span>
-            </div>`;
-          }).join('');
+        groupArea.innerHTML='<div style="padding:4px 16px 6px;font-size:11px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Auch wartend (woanders)</div>';
+        away.slice(0,3).forEach(g=>{
+          let fits=0; for(const b of g.list){ if(fits+b.persons<=bus.cap) fits+=b.persons; }
+          const item = document.createElement('div');
+          item.className='group-item';
+          item.style.margin='0 16px 8px';
+          item.innerHTML = '<div class="group-route">'
+            + '<div class="group-from-to">'
+            + '<span style="color:'+locColor(g.from)+';font-weight:800">'+locLabel(g.from)+'</span>'
+            + '<span style="color:#ccc;margin:0 4px">→</span>'
+            + '<span style="color:'+locColor(g.to)+';font-weight:800">'+locLabel(g.to)+'</span>'
+            + '</div>'
+            + '<div class="group-meta">'+g.list.length+' Buchungen · '+fits+'P passen rein</div>'
+            + '</div>'
+            + '<span class="group-badge away">Hinfahren</span>';
+          item.addEventListener('click', ()=>doDriveTo(g.from, g.to));
+          groupArea.appendChild(item);
+        });
       }
+
     } else {
-      // Nobody here, all away
+      // Nobody here — show away groups to drive to
       instrArea.innerHTML = makeInstrCard(col,
         'Schritt 1 — Fahre zur Abholung',
         'Kunden warten woanders',
-        'Wähle eine Gruppe unten — dann fährst du hin.',
+        'Wähle eine Gruppe — dann fährst du hin.',
         null, null,
         '👇', 'Tippe auf eine Gruppe um dorthin zu fahren.'
       );
-      groupArea.innerHTML = groups.slice(0,4).map(g=>{
-        const fc=locColor(g.from), tc=locColor(g.to);
-        return `<div class="group-item" onclick="doDriveTo('${g.from}','${g.to}')">
-          <div class="group-route">
-            <div class="group-from-to">
-              <span style="color:${fc};font-weight:800">${locLabel(g.from)}</span>
-              <span style="color:#ccc">→</span>
-              <span style="color:${tc};font-weight:800">${locLabel(g.to)}</span>
-            </div>
-            <div class="group-meta">${g.list.length} Buchungen · ${g.p} Personen</div>
-          </div>
-          <span class="group-badge away">Hinfahren</span>
-        </div>`;
-      }).join('');
+      groups.slice(0,4).forEach(g=>{
+        let fits=0; for(const b of g.list){ if(fits+b.persons<=bus.cap) fits+=b.persons; }
+        const item = document.createElement('div');
+        item.className='group-item';
+        item.style.margin='0 16px 8px';
+        item.innerHTML = '<div class="group-route">'
+          + '<div class="group-from-to">'
+          + '<span style="color:'+locColor(g.from)+';font-weight:800">'+locLabel(g.from)+'</span>'
+          + '<span style="color:#ccc;margin:0 4px">→</span>'
+          + '<span style="color:'+locColor(g.to)+';font-weight:800">'+locLabel(g.to)+'</span>'
+          + '</div>'
+          + '<div class="group-meta">'+g.list.length+' Buchungen · '+fits+'P passen in deinen Bus</div>'
+          + '</div>'
+          + '<span class="group-badge away">Hinfahren</span>';
+        item.addEventListener('click', ()=>doDriveTo(g.from, g.to));
+        groupArea.appendChild(item);
+      });
       actionBtn.className='action-btn a-gray';
       actionBtn.disabled=true;
       actionBtn.innerHTML='👇 Gruppe oben auswählen';
